@@ -8,3 +8,6 @@ bcrypt
 pyjwt
 python-dotenv
 email-validator
+google-auth
+google-genai
+requests

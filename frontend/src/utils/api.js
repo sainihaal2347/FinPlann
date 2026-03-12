@@ -11,7 +11,7 @@ const handleResponse = async (response) => {
   let data;
   try {
     data = text ? JSON.parse(text) : {};
-  } catch (e) {
+  } catch {
     data = { detail: "Invalid server response format." };
   }
   if (!response.ok) throw new Error(data.detail || `Server error: ${response.status}`);

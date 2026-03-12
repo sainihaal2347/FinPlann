@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import GoalsPage from './pages/GoalsPage';
@@ -38,17 +38,20 @@ const App = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+    <div className="flex h-screen bg-slate-950 font-sans text-slate-100 overflow-hidden selection:bg-indigo-500/30">
       {/* Sidebar Navigation */}
-      <aside className="w-72 bg-white border-r border-slate-100 flex flex-col p-8 shrink-0">
-        <div className="flex items-center gap-3 mb-12">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-            <Zap size={24} fill="currentColor" />
+      <aside className="w-72 bg-slate-900 border-r border-slate-800/50 flex flex-col p-8 shrink-0 relative overflow-hidden">
+        {/* Decorative background glow */}
+        <div className="absolute top-0 left-0 w-full h-48 bg-indigo-600/10 blur-[60px] rounded-full pointer-events-none -translate-y-1/2"></div>
+        
+        <div className="flex items-center gap-3 mb-12 relative z-10">
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center text-white shadow-[0_0_20px_rgba(99,102,241,0.4)]">
+            <Zap size={22} fill="currentColor" />
           </div>
-          <span className="text-2xl font-black tracking-tight">FinPlanAI</span>
+          <span className="text-2xl font-black tracking-tight text-white">FinPlanAI</span>
         </div>
         
-        <nav className="flex-1 space-y-2">
+        <nav className="flex-1 space-y-2 relative z-10">
           <SidebarItem 
             icon={LayoutDashboard} 
             label="Dashboard" 
@@ -77,15 +80,15 @@ const App = () => {
 
         <button 
           onClick={logout} 
-          className="flex items-center gap-4 text-slate-400 font-bold px-4 py-2 rounded-xl hover:text-rose-600 hover:bg-rose-50 transition-all"
+          className="relative z-10 flex items-center gap-4 text-slate-400 font-bold px-4 py-3 rounded-xl hover:text-rose-400 hover:bg-rose-500/10 transition-all group"
         >
-          <LogOut size={20} /> Logout
+          <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" /> Logout
         </button>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-10 overflow-y-auto bg-slate-50/50">
-        <div className="max-w-6xl mx-auto">
+      <main className="flex-1 p-10 overflow-y-auto bg-slate-950 relative">
+        <div className="max-w-6xl mx-auto relative z-10">
           {renderContent()}
         </div>
       </main>

@@ -1,14 +1,19 @@
 import React from 'react';
 
+// eslint-disable-next-line react/prop-types, no-unused-vars
 const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
   <div 
     onClick={onClick}
-    className={`flex items-center gap-4 px-6 py-4 cursor-pointer transition-all rounded-xl mx-2
-      ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-gray-500 hover:bg-indigo-50'}
+    className={`flex items-center gap-4 px-4 py-3 cursor-pointer transition-all duration-300 rounded-xl mx-2 relative overflow-hidden group
+      ${active 
+        ? 'bg-indigo-500/10 text-indigo-400 font-bold' 
+        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+      }
     `}
   >
-    <Icon size={20} />
-    <span className="font-semibold text-sm">{label}</span>
+    {active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>}
+    <Icon size={20} className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`} />
+    <span className="text-sm tracking-wide z-10">{label}</span>
   </div>
 );
 

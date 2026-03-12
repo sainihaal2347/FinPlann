@@ -61,6 +61,18 @@ class GoalItem(BaseModel):
     current: float = 0
     color: str
 
+class TransactionItem(BaseModel):
+    type: str  # 'income' or 'expense'
+    amount: float
+    label: str
+    date: str # ISO format string
+
+class UserSettings(BaseModel):
+    name: Optional[str] = None
+    emailAlerts: Optional[bool] = None
+    pushNotifs: Optional[bool] = None
+    twoFactor: Optional[bool] = None
+
 # --- Auth Helpers ---
 def create_token(user_id: str):
     """Generates a JWT token valid for 7 days."""
@@ -143,6 +155,67 @@ async def add_goal(goal: GoalItem, user_id: str = Depends(get_current_user)):
     data["user_id"] = user_id
     result = await db.goals.insert_one(data)
     return {"status": "success", "id": str(result.inserted_id)}
+
+@app.get("/api/user/transactions")
+async def get_transactions(user_id: str = Depends(get_current_user)):
+    """Fetch all income and expense transactions for the user."""
+    cursor = db.transactions.find({"user_id": user_id}).sort("date", -1)
+    transactions = []
+    async for doc in cursor:
+        doc["id"] = str(doc["_id"])
+        del doc["_id"]
+        transactions.append(doc)
+    return transactions
+
+@app.post("/api/user/transactions")
+async def add_transaction(transaction: TransactionItem, user_id: str = Depends(get_current_user)):
+    """Add a new income or expense transaction."""
+    data = transaction.dict()
+    data["user_id"] = user_id
+    data["created_at"] = datetime.utcnow()
+    result = await db.transactions.insert_one(data)
+    return {"status": "success", "id": str(result.inserted_id)}
+
+@app.get("/api/user/settings")
+async def get_settings(user_id: str = Depends(get_current_user)):
+    """Fetch user profile and settings preferences."""
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "email": user.get("email"),
+        "name": user.get("name", "FinPlan User"),
+        "settings": user.get("settings", {
+            "emailAlerts": True,
+            "pushNotifs": False,
+            "twoFactor": False
+        })
+    }
+
+@app.post("/api/user/settings")
+async def update_settings(settings: UserSettings, user_id: str = Depends(get_current_user)):
+    """Update user profile and settings preferences."""
+    update_data = {}
+    if settings.name is not None:
+        update_data["name"] = settings.name
+        
+    settings_dict = {}
+    if settings.emailAlerts is not None: settings_dict["emailAlerts"] = settings.emailAlerts
+    if settings.pushNotifs is not None: settings_dict["pushNotifs"] = settings.pushNotifs
+    if settings.twoFactor is not None: settings_dict["twoFactor"] = settings.twoFactor
+    
+    if settings_dict:
+        update_data["settings"] = settings_dict
+        
+    if not update_data:
+        return {"status": "success", "message": "No changes provided"}
+
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": update_data}
+    )
+    return {"status": "success"}
 
 @app.post("/api/upload-statement")
 async def upload(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):

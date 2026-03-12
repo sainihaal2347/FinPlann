@@ -73,7 +73,15 @@ class UserSettings(BaseModel):
     pushNotifs: Optional[bool] = None
     twoFactor: Optional[bool] = None
 
-# --- Auth Helpers ---
+class GoalUpdate(BaseModel):
+    title: Optional[str] = None
+    target: Optional[float] = None
+    add_amount: Optional[float] = None
+    color: Optional[str] = None
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
 def create_token(user_id: str):
     """Generates a JWT token valid for 7 days."""
     payload = {
@@ -156,6 +164,45 @@ async def add_goal(goal: GoalItem, user_id: str = Depends(get_current_user)):
     result = await db.goals.insert_one(data)
     return {"status": "success", "id": str(result.inserted_id)}
 
+@app.put("/api/user/goals/{goal_id}")
+async def update_goal(goal_id: str, update: GoalUpdate, user_id: str = Depends(get_current_user)):
+    """Update an existing goal (title, target, color) or add to its current amount."""
+    goal = await db.goals.find_one({"_id": ObjectId(goal_id), "user_id": user_id})
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    update_fields = {}
+    if update.title is not None: update_fields["title"] = update.title
+    if update.target is not None: update_fields["target"] = update.target
+    if update.color is not None: update_fields["color"] = update.color
+
+    inc_fields = {}
+    if update.add_amount is not None: inc_fields["current"] = update.add_amount
+
+    update_query = {}
+    if update_fields: update_query["$set"] = update_fields
+    if inc_fields: update_query["$inc"] = inc_fields
+
+    if not update_query:
+        return {"status": "success", "message": "No changes requested"}
+
+    await db.goals.update_one({"_id": ObjectId(goal_id)}, update_query)
+    return {"status": "success"}
+
+@app.delete("/api/user/goals/{goal_id}")
+async def delete_goal(goal_id: str, user_id: str = Depends(get_current_user)):
+    """Delete a financial goal."""
+    result = await db.goals.delete_one({"_id": ObjectId(goal_id), "user_id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return {"status": "success"}
+
+@app.delete("/api/user/transactions")
+async def delete_all_transactions(user_id: str = Depends(get_current_user)):
+    """Delete all transactions for the user."""
+    await db.transactions.delete_many({"user_id": user_id})
+    return {"status": "success"}
+
 @app.get("/api/user/transactions")
 async def get_transactions(user_id: str = Depends(get_current_user)):
     """Fetch all income and expense transactions for the user."""
@@ -217,20 +264,102 @@ async def update_settings(settings: UserSettings, user_id: str = Depends(get_cur
     )
     return {"status": "success"}
 
+@app.post("/api/user/change-password")
+async def change_password(pass_data: PasswordChange, user_id: str = Depends(get_current_user)):
+    """Update user password securely."""
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if not bcrypt.checkpw(pass_data.current_password.encode('utf-8'), user["password"]):
+        raise HTTPException(status_code=401, detail="Incorrect current password")
+        
+    hashed = bcrypt.hashpw(pass_data.new_password.encode('utf-8'), bcrypt.gensalt())
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"password": hashed}}
+    )
+    return {"status": "success"}
+
 @app.post("/api/upload-statement")
 async def upload(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):
-    """Parse CSV bank statement (Placeholder implementation)."""
+    """Parse CSV bank statement and save transactions."""
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
     
-    return {
-        "status": "success", 
-        "summary": {
-            "net_savings": 45000, 
-            "total_income": 120000,
-            "period": "Analysis Complete"
+    try:
+        content = await file.read()
+        # Read the CSV. We expect columns loosely like: Date, Description, Amount, Type
+        # We will do a generic parse looking for positive/negative amounts or distinct columns
+        df = pd.read_csv(io.BytesIO(content))
+        
+        # Super generic CSV parser: 
+        # Tries to find amount-like columns and description-like columns
+        # For a real banking app, this would be highly specialized per-bank.
+        df.columns = [str(c).lower().strip() for c in df.columns]
+        
+        amount_col = next((c for c in df.columns if 'amount' in c or 'value' in c or 'credit' in c or 'debit' in c), None)
+        desc_col = next((c for c in df.columns if 'desc' in c or 'narration' in c or 'particulars' in c), None)
+        date_col = next((c for c in df.columns if 'date' in c or 'time' in c), None)
+        
+        if not amount_col or not desc_col:
+            raise HTTPException(status_code=400, detail="Could not automatically identify 'Amount' and 'Description' columns in the CSV.")
+            
+        transactions_to_insert = []
+        total_income = 0
+        total_expense = 0
+        
+        for index, row in df.iterrows():
+            try:
+                # Handle potential string amounts like "$1,000.50"
+                raw_amt = str(row[amount_col]).replace(',', '').replace('$', '').replace('₹', '').strip()
+                amt = float(raw_amt)
+                
+                # Skip zero amounts or NaNs
+                if pd.isna(amt) or amt == 0:
+                    continue
+                    
+                t_type = 'income' if amt > 0 else 'expense'
+                abs_amt = abs(amt)
+                
+                if t_type == 'income': total_income += abs_amt
+                else: total_expense += abs_amt
+                
+                # Try to parse date, fallback to now
+                t_date = datetime.utcnow().isoformat()
+                if date_col and not pd.isna(row[date_col]):
+                    t_date_raw = str(row[date_col])
+                    # Ensure format is roughly standard (dayfirst helps handle DD-MM-YYYY)
+                    parsed_date = pd.to_datetime(t_date_raw, errors='coerce', dayfirst=True)
+                    if not pd.isna(parsed_date):
+                        t_date = parsed_date.isoformat()
+
+                transactions_to_insert.append({
+                    "user_id": user_id,
+                    "type": t_type,
+                    "amount": abs_amt,
+                    "label": str(row[desc_col])[:50], # Trim long desc
+                    "date": t_date,
+                    "created_at": datetime.utcnow()
+                })
+            except Exception as e:
+                # Skip unparseable rows (like headers or empty footers)
+                continue
+                
+        if transactions_to_insert:
+            await db.transactions.insert_many(transactions_to_insert)
+            
+        return {
+            "status": "success", 
+            "inserted": len(transactions_to_insert),
+            "summary": {
+                "net_savings": total_income - total_expense, 
+                "total_income": total_income,
+                "period": "Automated Parsing Complete"
+            }
         }
-    }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

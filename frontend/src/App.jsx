@@ -38,9 +38,9 @@ const App = () => {
   };
 
   return (
-    <div className="flex h-screen bg-slate-950 font-sans text-slate-100 overflow-hidden selection:bg-indigo-500/30">
+    <div className="flex h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#0f172a] to-black font-sans text-slate-100 overflow-hidden selection:bg-indigo-500/30">
       {/* Sidebar Navigation */}
-      <aside className="w-72 bg-slate-900 border-r border-slate-800/50 flex flex-col p-8 shrink-0 relative overflow-hidden">
+      <aside className="w-72 bg-slate-900/50 backdrop-blur-xl border-r border-slate-800/50 flex flex-col p-8 shrink-0 relative overflow-hidden">
         {/* Decorative background glow */}
         <div className="absolute top-0 left-0 w-full h-48 bg-indigo-600/10 blur-[60px] rounded-full pointer-events-none -translate-y-1/2"></div>
         
@@ -87,7 +87,7 @@ const App = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-10 overflow-y-auto bg-slate-950 relative">
+      <main className="flex-1 p-10 overflow-y-auto bg-transparent relative">
         <div className="max-w-6xl mx-auto relative z-10">
           {renderContent()}
         </div>

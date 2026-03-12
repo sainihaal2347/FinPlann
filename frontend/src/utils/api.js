@@ -27,5 +27,10 @@ export const api = {
   
   get: (path) => fetch(`${API_BASE}${path}`, { 
     headers: getHeaders() 
+  }).then(handleResponse),
+
+  delete: (path) => fetch(`${API_BASE}${path}`, { 
+    method: 'DELETE',
+    headers: getHeaders() 
   }).then(handleResponse)
 };

@@ -16,6 +16,10 @@ const SettingsPage = () => {
   const [editName, setEditName] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [showPwdModal, setShowPwdModal] = useState(false);
+  const [pwdData, setPwdData] = useState({ current: '', new: '', confirm: '' });
+  const [pwdLoading, setPwdLoading] = useState(false);
+
   useEffect(() => {
     fetchSettings();
   }, []);
@@ -40,12 +44,10 @@ const SettingsPage = () => {
   };
 
   const updateSetting = async (key, value) => {
-    // Optimistic UI update
     setToggles(prev => ({ ...prev, [key]: value }));
     try {
       await api.post('/user/settings', { [key]: value });
     } catch (err) {
-      // Revert on failure
       setToggles(prev => ({ ...prev, [key]: !value }));
       alert("Failed to update setting: " + err.message);
     }
@@ -67,6 +69,28 @@ const SettingsPage = () => {
       alert("Failed to update profile: " + err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (pwdData.new !== pwdData.confirm) {
+      alert("New passwords do not match.");
+      return;
+    }
+    setPwdLoading(true);
+    try {
+      await api.post('/user/change-password', {
+        current_password: pwdData.current,
+        new_password: pwdData.new
+      });
+      alert("Password changed successfully.");
+      setShowPwdModal(false);
+      setPwdData({ current: '', new: '', confirm: '' });
+    } catch (err) {
+      alert("Failed to change password: " + err.message);
+    } finally {
+      setPwdLoading(false);
     }
   };
 
@@ -111,7 +135,7 @@ const SettingsPage = () => {
             <Button onClick={() => setShowEditModal(true)} variant="outline" className="w-full justify-start gap-4 py-3 bg-slate-800/50 hover:bg-slate-700 border-slate-700">
               <User size={18} className="text-indigo-400" /> Edit Profile
             </Button>
-            <Button variant="outline" className="w-full justify-start gap-4 py-3 bg-slate-800/50 hover:bg-slate-700 border-slate-700">
+            <Button variant="outline" className="w-full justify-start gap-4 py-3 bg-slate-800/50 hover:bg-slate-700 border-slate-700 cursor-not-allowed opacity-50">
               <Smartphone size={18} className="text-emerald-400" /> Connected Devices
             </Button>
           </div>
@@ -154,7 +178,11 @@ const SettingsPage = () => {
               />
             </div>
             <div className="mt-6 pt-6 border-t border-slate-800/50">
-              <Button variant="outline" className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300">
+              <Button 
+                onClick={() => setShowPwdModal(true)}
+                variant="outline" 
+                className="text-rose-400 border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-300"
+              >
                 Change Password
               </Button>
             </div>
@@ -188,6 +216,61 @@ const SettingsPage = () => {
 
               <Button type="submit" disabled={saving} className="w-full py-4 text-lg mt-4 bg-indigo-600 hover:bg-indigo-500">
                 {saving ? 'Saving...' : 'Save Profile'}
+              </Button>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showPwdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <Card className="w-full max-w-sm border-slate-700 shadow-2xl relative">
+            <button onClick={() => setShowPwdModal(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+              <X size={24} />
+            </button>
+            <h3 className="text-2xl font-black text-white mb-6">Change Password</h3>
+            
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Current Password</label>
+                <input 
+                  type="password" 
+                  autoFocus
+                  placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" 
+                  value={pwdData.current}
+                  onChange={e => setPwdData({...pwdData, current: e.target.value})}
+                  className="w-full p-4 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-rose-500 text-lg font-medium"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">New Password</label>
+                <input 
+                  type="password" 
+                  placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" 
+                  value={pwdData.new}
+                  onChange={e => setPwdData({...pwdData, new: e.target.value})}
+                  className="w-full p-4 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-rose-500 text-lg font-medium"
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Confirm New Password</label>
+                <input 
+                  type="password" 
+                  placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" 
+                  value={pwdData.confirm}
+                  onChange={e => setPwdData({...pwdData, confirm: e.target.value})}
+                  className="w-full p-4 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-rose-500 text-lg font-medium"
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <Button type="submit" disabled={pwdLoading} className="w-full py-4 text-lg mt-4 bg-rose-600 hover:bg-rose-500">
+                {pwdLoading ? 'Updating...' : 'Update Password'}
               </Button>
             </form>
           </Card>

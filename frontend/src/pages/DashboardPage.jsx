@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button } from '../components/SharedUI';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { api } from '../utils/api';
-import { Plus, X, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
+import { Plus, X, ArrowUpRight, ArrowDownRight, RefreshCw, FileUp, Trash2 } from 'lucide-react';
 
 const DashboardPage = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   
   const [form, setForm] = useState({
     type: 'income',
@@ -31,6 +32,49 @@ const DashboardPage = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:8000/api/upload-statement', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      const data = await res.json();
+      if (data.summary) {
+        alert(`Successfully imported ${data.inserted} transactions from statement!`);
+        fetchData();
+      } else {
+        alert("Failed to parse statement.");
+      }
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = null; // reset input
+    }
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL transaction records? This cannot be undone.")) return;
+    try {
+      await api.delete('/user/transactions');
+      fetchData();
+    } catch (err) {
+      alert("Failed to reset transactions: " + err.message);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,24 +102,36 @@ const DashboardPage = () => {
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const netSavings = totalIncome - totalExpense;
 
-  // Format data for charts (group by day)
+  // Format data for charts (group by day spanning all active dates)
   const chartDataMap = {};
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   
-  // Initialize last 7 days empty
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    chartDataMap[d.toISOString().split('T')[0]] = { name: days[d.getDay()], income: 0, expense: 0, sortKey: d.getTime() };
-  }
-
-  // Populate data
-  transactions.forEach(t => {
-    const dStr = t.date ? t.date.split('T')[0] : t.created_at?.split('T')[0];
-    if (dStr && chartDataMap[dStr]) {
-      chartDataMap[dStr][t.type] += t.amount;
+  if (transactions.length > 0) {
+    // Generate dates dynamically based on available transaction ranges
+    transactions.forEach(t => {
+      const dStr = t.date ? t.date.split('T')[0] : t.created_at?.split('T')[0];
+      if (dStr) {
+        if (!chartDataMap[dStr]) {
+          const d = new Date(dStr);
+          chartDataMap[dStr] = {
+            name: `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear().toString().substring(2)}`,
+            income: 0,
+            expense: 0,
+            sortKey: d.getTime()
+          };
+        }
+        chartDataMap[dStr][t.type] += t.amount;
+      }
+    });
+  } else {
+    // Empty state fallback (7 days)
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      chartDataMap[dStr] = { name: `${days[d.getDay()]} ${d.getDate()}`, income: 0, expense: 0, sortKey: d.getTime() };
     }
-  });
+  }
 
   const activityData = Object.values(chartDataMap).sort((a,b) => a.sortKey - b.sortKey);
 
@@ -90,6 +146,26 @@ const DashboardPage = () => {
           <Button variant="outline" onClick={fetchData} className="!p-3 border-slate-700 hover:bg-slate-800">
             <RefreshCw size={20} className={loading ? "animate-spin text-indigo-400" : "text-slate-400"} />
           </Button>
+
+          <Button onClick={handleReset} variant="outline" className="gap-2 border-slate-700 bg-slate-900/50 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400">
+            <Trash2 size={20} /> Reset Data
+          </Button>
+
+          <div className="relative flex items-center">
+            <input 
+              type="file" 
+              id="dashboard-upload" 
+              accept=".csv" 
+              className="hidden" 
+              onChange={handleUpload}
+              disabled={uploading}
+            />
+            <label htmlFor="dashboard-upload" className="flex items-center gap-2 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md">
+              <FileUp size={20} />
+              {uploading ? 'Parsing...' : 'Upload CSV'}
+            </label>
+          </div>
+
           <Button onClick={() => setShowModal(true)} className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white">
             <Plus size={20} /> Add Record
           </Button>
@@ -209,15 +285,22 @@ const DashboardPage = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Label / Description</label>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Label / Category</label>
                 <input 
                   type="text" 
+                  list="category-options"
                   placeholder={form.type === 'income' ? "e.g., Salary, Freelance" : "e.g., Groceries, Rent"} 
                   value={form.label}
                   onChange={e => setForm({...form, label: e.target.value})}
                   className="w-full p-4 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
                   required
                 />
+                <datalist id="category-options">
+                  {form.type === 'income' 
+                    ? ['Salary', 'Business', 'Investments', 'Freelance', 'Other Income'].map(c => <option key={c} value={c} />)
+                    : ['Groceries', 'Food & Dining', 'Transportation', 'Fuel', 'Housing & Rent', 'Entertainment', 'Shopping', 'Healthcare', 'Education', 'Other Expense'].map(c => <option key={c} value={c} />)
+                  }
+                </datalist>
               </div>
 
               <Button type="submit" disabled={isSubmitting} className="w-full py-4 text-lg mt-4 bg-indigo-600 hover:bg-indigo-500">

@@ -1,6 +1,6 @@
 import React from 'react';
 
-// eslint-disable-next-line react/prop-types, no-unused-vars
+// eslint-disable-next-line
 const SidebarItem = ({ icon: Icon, label, active, onClick }) => (
   <div 
     onClick={onClick}

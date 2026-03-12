@@ -1,17 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Card, ProgressBar, Button } from '../components/SharedUI';
 import { api } from '../utils/api';
-import { Plus, Target, RefreshCw } from 'lucide-react';
+import { Plus, Target, RefreshCw, Edit3, Trash2, X } from 'lucide-react';
 
 const GoalsPage = () => {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null);
   
   const [newGoal, setNewGoal] = useState({
     title: '',
     target: '',
     color: '#6366f1' // default indigo-500
+  });
+
+  const [editData, setEditData] = useState({
+    title: '',
+    target: '',
+    addAmount: '',
+    color: ''
   });
 
   const fetchGoals = () => {
@@ -25,6 +33,7 @@ const GoalsPage = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line
     fetchGoals();
   }, []);
 
@@ -47,6 +56,64 @@ const GoalsPage = () => {
     }
   };
 
+  const handleDelete = async (goalId) => {
+    if(!window.confirm("Are you sure you want to delete this goal?")) return;
+    try {
+      await api.post(`/user/goals/${goalId}`, null); // Fast API fallback if DELETE is tricky
+    } catch {
+      // Ignore
+    }
+    // Using actual DELETE method
+    try {
+      await fetch(`http://127.0.0.1:8000/api/user/goals/${goalId}`, {
+        method: 'DELETE',
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
+        }
+      });
+      fetchGoals();
+    } catch (err) {
+      alert("Failed to delete goal: " + err.message);
+    }
+  };
+
+  const openEditModal = (goal) => {
+    setEditingGoal(goal);
+    setEditData({
+      title: goal.title,
+      target: goal.target,
+      addAmount: '', // Empty by default
+      color: goal.color || '#6366f1'
+    });
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        title: editData.title,
+        target: parseFloat(editData.target),
+        color: editData.color
+      };
+      if (editData.addAmount) {
+        payload.add_amount = parseFloat(editData.addAmount);
+      }
+      
+      await fetch(`http://127.0.0.1:8000/api/user/goals/${editingGoal.id || editingGoal._id}`, {
+        method: 'PUT',
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
+        },
+        body: JSON.stringify(payload)
+      });
+      setEditingGoal(null);
+      fetchGoals();
+    } catch (err) {
+      alert("Failed to update goal: " + err.message);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -65,7 +132,7 @@ const GoalsPage = () => {
       </div>
 
       {isCreating && (
-        <Card title="Create New Goal" className="border-indigo-500/30 bg-indigo-500/5 animate-fade-in">
+        <Card title="Create New Goal" className="border-indigo-500/30 bg-indigo-500/5 animate-fade-in mb-8">
           <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="space-y-2 md:col-span-2">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Goal Name</label>
@@ -109,9 +176,31 @@ const GoalsPage = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {goals.map(goal => (
-            <Card key={goal.id || goal._id} title={goal.title} className="hover:-translate-y-1 transition-transform duration-300">
-              <div className="space-y-4">
+          {goals.map(goal => {
+            const gid = goal.id || goal._id;
+            return (
+            <Card key={gid} className="hover:-translate-y-1 transition-transform duration-300 relative group">
+              
+              {/* Header with Title & Overlay Actions inline */}
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-xl font-black tracking-tight text-white pr-4">{goal.title}</h3>
+                <div className="flex gap-2 shrink-0">
+                  <button 
+                    onClick={() => openEditModal(goal)}
+                    className="p-2 rounded-lg bg-slate-800/80 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-colors"
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                  <button 
+                    onClick={() => handleDelete(gid)}
+                    className="p-2 rounded-lg bg-slate-800/80 text-rose-400 hover:bg-rose-500 hover:text-white transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4 mt-2">
                 <div className="flex items-end justify-between">
                   <div>
                     <p className="text-2xl font-black" style={{ color: goal.color || '#f8fafc'}} >
@@ -128,7 +217,8 @@ const GoalsPage = () => {
                 <ProgressBar current={goal.current} target={goal.target} color={goal.color || "#6366f1"} />
               </div>
             </Card>
-          ))}
+          )})}
+          
           {goals.length === 0 && !isCreating && (
             <div className="col-span-full text-center py-20 text-slate-500 flex flex-col items-center bg-slate-900/50 rounded-[24px] border border-slate-800 border-dashed">
               <Target size={48} className="mb-4 opacity-20" />
@@ -138,6 +228,70 @@ const GoalsPage = () => {
           )}
         </div>
       )}
+
+      {/* Edit Goal Modal */}
+      {editingGoal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <Card className="w-full max-w-md border-slate-700 shadow-2xl relative">
+            <button onClick={() => setEditingGoal(null)} className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors">
+              <X size={24} />
+            </button>
+            <h3 className="text-2xl font-black text-white mb-6">Manage Goal</h3>
+            
+            <form onSubmit={handleUpdate} className="space-y-5">
+              
+              <div className="p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl">
+                <label className="text-xs font-bold text-indigo-400 uppercase tracking-widest ml-1">Deposit Funds (₹)</label>
+                <p className="text-sm text-slate-400 mb-2">Add to the current balance of ₹{editingGoal.current?.toLocaleString()}</p>
+                <input 
+                  type="number" 
+                  placeholder="0.00" 
+                  value={editData.addAmount}
+                  onChange={e => setEditData({...editData, addAmount: e.target.value})}
+                  className="w-full p-3 rounded-lg bg-slate-900/50 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Goal Name</label>
+                  <input 
+                    type="text" 
+                    value={editData.title}
+                    onChange={e => setEditData({...editData, title: e.target.value})}
+                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Target (₹)</label>
+                  <input 
+                    type="number" 
+                    value={editData.target}
+                    onChange={e => setEditData({...editData, target: e.target.value})}
+                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Color</label>
+                  <input 
+                    type="color" 
+                    value={editData.color}
+                    onChange={e => setEditData({...editData, color: e.target.value})}
+                    className="h-[50px] w-full cursor-pointer rounded-xl bg-slate-900 border border-slate-700 p-1"
+                  />
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full py-4 text-lg mt-4 bg-indigo-600 hover:bg-indigo-500">
+                Update Goal
+              </Button>
+            </form>
+          </Card>
+        </div>
+      )}
+
     </div>
   );
 };

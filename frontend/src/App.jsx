@@ -5,6 +5,7 @@ import GoalsPage from './pages/GoalsPage';
 import SettingsPage from './pages/SettingsPage';
 import CashFlowPage from './pages/CashFlowPage';
 import SidebarItem from './components/SidebarItem';
+import ChatWidget from './components/ChatWidget';
 import { LayoutDashboard, Target, Settings, LogOut, Zap, TrendingUp } from 'lucide-react';
 
 const App = () => {
@@ -92,6 +93,7 @@ const App = () => {
           {renderContent()}
         </div>
       </main>
+      <ChatWidget />
     </div>
   );
 };

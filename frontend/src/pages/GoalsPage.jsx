@@ -12,14 +12,18 @@ const GoalsPage = () => {
   const [newGoal, setNewGoal] = useState({
     title: '',
     target: '',
-    color: '#6366f1' // default indigo-500
+    color: '#6366f1', // default indigo-500
+    target_date: '',
+    category: '🎯'
   });
 
   const [editData, setEditData] = useState({
     title: '',
     target: '',
     addAmount: '',
-    color: ''
+    color: '',
+    target_date: '',
+    category: '🎯'
   });
 
   const fetchGoals = () => {
@@ -46,10 +50,12 @@ const GoalsPage = () => {
         title: newGoal.title,
         target: parseFloat(newGoal.target),
         current: 0,
-        color: newGoal.color
+        color: newGoal.color,
+        target_date: newGoal.target_date || null,
+        category: newGoal.category || '🎯'
       });
       setIsCreating(false);
-      setNewGoal({ title: '', target: '', color: '#6366f1' });
+      setNewGoal({ title: '', target: '', color: '#6366f1', target_date: '', category: '🎯' });
       fetchGoals();
     } catch (err) {
       alert("Failed to create goal: " + err.message);
@@ -83,7 +89,9 @@ const GoalsPage = () => {
       title: goal.title,
       target: goal.target,
       addAmount: '', // Empty by default
-      color: goal.color || '#6366f1'
+      color: goal.color || '#6366f1',
+      target_date: goal.target_date ? goal.target_date.split('T')[0] : '',
+      category: goal.category || '🎯'
     });
   };
 
@@ -93,7 +101,9 @@ const GoalsPage = () => {
       const payload = {
         title: editData.title,
         target: parseFloat(editData.target),
-        color: editData.color
+        color: editData.color,
+        target_date: editData.target_date || null,
+        category: editData.category
       };
       if (editData.addAmount) {
         payload.add_amount = parseFloat(editData.addAmount);
@@ -133,37 +143,28 @@ const GoalsPage = () => {
 
       {isCreating && (
         <Card title="Create New Goal" className="border-indigo-500/30 bg-indigo-500/5 animate-fade-in mb-8">
-          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Goal Name</label>
-              <input 
-                type="text" 
-                placeholder="e.g., Emergency Fund" 
-                value={newGoal.title}
-                onChange={e => setNewGoal({...newGoal, title: e.target.value})}
-                className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Icon</label>
+                  <input type="text" value={newGoal.category} onChange={e => setNewGoal({...newGoal, category: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500 text-center text-xl" maxLength="2" required />
+                </div>
+                <div className="space-y-2 md:col-span-4">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Goal Name</label>
+                  <input type="text" placeholder="e.g., Emergency Fund" value={newGoal.title} onChange={e => setNewGoal({...newGoal, title: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                </div>
+                <div className="space-y-2 md:col-span-3">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Target (₹)</label>
+                  <input type="number" placeholder="0.00" value={newGoal.target} onChange={e => setNewGoal({...newGoal, target: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
+                </div>
+                <div className="space-y-2 md:col-span-3">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Target Date</label>
+                  <input type="date" value={newGoal.target_date} onChange={e => setNewGoal({...newGoal, target_date: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500 [&::-webkit-calendar-picker-indicator]:filter-invert" />
+                </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Target Amount (₹)</label>
-              <input 
-                type="number" 
-                placeholder="0.00" 
-                value={newGoal.target}
-                onChange={e => setNewGoal({...newGoal, target: e.target.value})}
-                className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-            </div>
-            <div className="flex gap-2">
-              <input 
-                type="color" 
-                value={newGoal.color}
-                onChange={e => setNewGoal({...newGoal, color: e.target.value})}
-                className="h-[50px] w-full max-w-[60px] cursor-pointer rounded-xl bg-slate-900 border border-slate-700 p-1"
-              />
-              <Button type="submit" className="w-full py-3">Save</Button>
+            <div className="flex gap-2 justify-end">
+              <input type="color" value={newGoal.color} onChange={e => setNewGoal({...newGoal, color: e.target.value})} title="Theme Color" className="h-[50px] w-full max-w-[60px] cursor-pointer rounded-xl bg-slate-900 border border-slate-700 p-1" />
+              <Button type="submit" className="w-[150px] py-3 bg-indigo-600 hover:bg-indigo-500">Save Goal</Button>
             </div>
           </form>
         </Card>
@@ -178,13 +179,39 @@ const GoalsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {goals.map(goal => {
             const gid = goal.id || goal._id;
+            
+            // Computations
+            const targetDate = goal.target_date ? new Date(goal.target_date) : null;
+            const daysRemaining = targetDate ? Math.ceil((targetDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
+            const monthsRemaining = daysRemaining && daysRemaining > 0 ? Math.max(1, daysRemaining / 30) : null;
+            const monthlySaving = monthsRemaining ? ((goal.target - goal.current) / monthsRemaining).toFixed(0) : null;
+            const isCompleted = goal.current >= goal.target;
+            const isOverdue = daysRemaining !== null && daysRemaining < 0 && !isCompleted;
+
+            let statusBadge = null;
+            if (isCompleted) {
+              statusBadge = <span className="bg-emerald-500/20 text-emerald-400 text-[10px] px-2 py-1 rounded-md font-bold ml-2 shrink-0">Completed 🎉</span>;
+            } else if (isOverdue) {
+              statusBadge = <span className="bg-rose-500/20 text-rose-400 text-[10px] px-2 py-1 rounded-md font-bold ml-2 shrink-0">Overdue</span>;
+            } else if (daysRemaining !== null) {
+              statusBadge = <span className="bg-indigo-500/20 text-indigo-400 text-[10px] px-2 py-1 rounded-md font-bold ml-2 shrink-0">{daysRemaining} days left</span>;
+            }
+
             return (
-            <Card key={gid} className="hover:-translate-y-1 transition-transform duration-300 relative group">
+            <Card key={gid} className="hover:-translate-y-1 transition-transform duration-300 relative group flex flex-col h-full">
               
-              {/* Header with Title & Overlay Actions inline */}
               <div className="flex justify-between items-start mb-2">
-                <h3 className="text-xl font-black tracking-tight text-white pr-4">{goal.title}</h3>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex items-start">
+                  <span className="text-2xl mr-3">{goal.category || '🎯'}</span>
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight text-white flex items-center flex-wrap gap-y-1">
+                      {goal.title}
+                      {statusBadge}
+                    </h3>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2 shrink-0 ml-2">
                   <button 
                     onClick={() => openEditModal(goal)}
                     className="p-2 rounded-lg bg-slate-800/80 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-colors"
@@ -200,10 +227,10 @@ const GoalsPage = () => {
                 </div>
               </div>
 
-              <div className="space-y-4 mt-2">
-                <div className="flex items-end justify-between">
+              <div className="space-y-4 mt-auto">
+                <div className="flex items-end justify-between mt-4">
                   <div>
-                    <p className="text-2xl font-black" style={{ color: goal.color || '#f8fafc'}} >
+                    <p className="text-3xl font-black" style={{ color: goal.color || '#f8fafc'}} >
                       ₹{goal.current.toLocaleString()}
                     </p>
                     <p className="text-slate-500 text-sm font-bold mt-1">of ₹{goal.target.toLocaleString()}</p>
@@ -215,6 +242,13 @@ const GoalsPage = () => {
                   </div>
                 </div>
                 <ProgressBar current={goal.current} target={goal.target} color={goal.color || "#6366f1"} />
+                
+                {monthlySaving && !isCompleted && !isOverdue && (
+                  <div className="pt-4 mt-4 border-t border-slate-800/50 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Suggested Saving</span>
+                    <span className="text-sm font-bold text-slate-200">₹{parseFloat(monthlySaving).toLocaleString()} / mo</span>
+                  </div>
+                )}
               </div>
             </Card>
           )})}
@@ -252,35 +286,26 @@ const GoalsPage = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div className="space-y-2 md:col-span-3">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Icon</label>
+                  <input type="text" value={editData.category} onChange={e => setEditData({...editData, category: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500 text-center text-xl" maxLength="2" required />
+                </div>
+                <div className="space-y-2 md:col-span-9">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Goal Name</label>
-                  <input 
-                    type="text" 
-                    value={editData.title}
-                    onChange={e => setEditData({...editData, title: e.target.value})}
-                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
+                  <input type="text" value={editData.title} onChange={e => setEditData({...editData, title: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-4">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Target (₹)</label>
-                  <input 
-                    type="number" 
-                    value={editData.target}
-                    onChange={e => setEditData({...editData, target: e.target.value})}
-                    className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
+                  <input type="number" value={editData.target} onChange={e => setEditData({...editData, target: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500" required />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-5">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Target Date</label>
+                  <input type="date" value={editData.target_date} onChange={e => setEditData({...editData, target_date: e.target.value})} className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-white outline-none focus:ring-2 focus:ring-indigo-500 [&::-webkit-calendar-picker-indicator]:filter-invert" />
+                </div>
+                <div className="space-y-2 md:col-span-3">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Color</label>
-                  <input 
-                    type="color" 
-                    value={editData.color}
-                    onChange={e => setEditData({...editData, color: e.target.value})}
-                    className="h-[50px] w-full cursor-pointer rounded-xl bg-slate-900 border border-slate-700 p-1"
-                  />
+                  <input type="color" value={editData.color} onChange={e => setEditData({...editData, color: e.target.value})} className="h-[50px] w-full cursor-pointer rounded-xl bg-slate-900 border border-slate-700 p-1" />
                 </div>
               </div>
 

@@ -15,7 +15,23 @@ from bson import ObjectId
 # Load environment variables from .env file
 load_dotenv()
 
-app = FastAPI(title="FinPlan AI MongoDB API")
+from contextlib import asynccontextmanager
+
+# --- Lifespan Event Handler ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    try:
+        await client.admin.command('ping')
+        print("✅ Successfully connected to MongoDB Atlas!")
+    except Exception as e:
+        print(f"\n❌ MONGODB CONNECTION ERROR: {str(e)}")
+    
+    yield
+    # Shutdown logic (optional)
+    client.close()
+
+app = FastAPI(title="FinPlan AI MongoDB API", lifespan=lifespan)
 
 # --- CORS Configuration ---
 app.add_middleware(
@@ -28,27 +44,9 @@ app.add_middleware(
 
 # MongoDB Connection
 MONGODB_URL = os.getenv("MONGODB_URL")
-if not MONGODB_URL:
-    print("CRITICAL: MONGODB_URL not found in .env file")
-
 client = AsyncIOMotorClient(MONGODB_URL)
 db = client.finplan
 SECRET_KEY = os.getenv("JWT_SECRET", "secret_key_default_123")
-
-# --- Startup Connection Check ---
-@app.on_event("startup")
-async def verify_mongodb_connection():
-    try:
-        # The 'ping' command is cheap and checks if credentials/URL are valid
-        await client.admin.command('ping')
-        print("✅ Successfully connected to MongoDB Atlas!")
-    except Exception as e:
-        print("\n❌ MONGODB CONNECTION ERROR:")
-        print(f"Error Details: {str(e)}")
-        print("\nTROUBLESHOOTING:")
-        print("1. Check if your password in .env is correct.")
-        print("2. Ensure your IP address is whitelisted in MongoDB Atlas (Network Access).")
-        print("3. If your password has special characters like '@', use URL encoding.\n")
 
 # --- Pydantic Models ---
 class UserAuth(BaseModel):
@@ -60,6 +58,9 @@ class GoalItem(BaseModel):
     target: float
     current: float = 0
     color: str
+    target_date: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
 
 class TransactionItem(BaseModel):
     type: str  # 'income' or 'expense'
@@ -78,10 +79,21 @@ class GoalUpdate(BaseModel):
     target: Optional[float] = None
     add_amount: Optional[float] = None
     color: Optional[str] = None
+    target_date: Optional[str] = None
+    category: Optional[str] = None
+    description: Optional[str] = None
 
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
+
+class AIChatRequest(BaseModel):
+    message: str
+    history: List[dict] = []
+
+class GoogleAuthRequest(BaseModel):
+    token: str
+
 def create_token(user_id: str):
     """Generates a JWT token valid for 7 days."""
     payload = {
@@ -135,6 +147,9 @@ async def register(auth: UserAuth):
             raise HTTPException(status_code=500, detail="Database Authentication Failed. Check your MongoDB password in .env")
         raise HTTPException(status_code=500, detail=str(e))
 
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 @app.post("/api/auth/login")
 async def login(auth: UserAuth):
     """Authenticate user and return a JWT."""
@@ -144,6 +159,49 @@ async def login(auth: UserAuth):
     
     user_id = str(user["_id"])
     return {"token": create_token(user_id), "email": auth.email}
+
+@app.post("/api/auth/google")
+async def google_auth(request: GoogleAuthRequest):
+    """Verify Google token and login/register the user."""
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not client_id:
+        raise HTTPException(status_code=500, detail="Google Login is not configured on the server")
+
+    try:
+        # Verify the token with Google
+        idinfo = id_token.verify_oauth2_token(request.token, google_requests.Request(), client_id)
+        email = idinfo['email']
+        name = idinfo.get('name', 'FinPlan User')
+
+        # Check if user exists
+        user = await db.users.find_one({"email": email})
+
+        if not user:
+            # Create a new user account without a password
+            result = await db.users.insert_one({
+                "email": email,
+                "name": name,
+                "password": b"", # No password for OAuth users
+                "created_at": datetime.utcnow(),
+                "auth_provider": "google",
+                "settings": {
+                    "emailAlerts": True,
+                    "pushNotifs": False,
+                    "twoFactor": False
+                }
+            })
+            user_id = str(result.inserted_id)
+        else:
+            user_id = str(user["_id"])
+            # Update name if empty
+            if not user.get("name"):
+                await db.users.update_one({"_id": user["_id"]}, {"$set": {"name": name}})
+
+        return {"token": create_token(user_id), "email": email}
+        
+    except ValueError as e:
+        print("Google Auth Verification Error:", e)
+        raise HTTPException(status_code=401, detail="Invalid Google token")
 
 @app.get("/api/user/goals")
 async def get_goals(user_id: str = Depends(get_current_user)):
@@ -175,6 +233,9 @@ async def update_goal(goal_id: str, update: GoalUpdate, user_id: str = Depends(g
     if update.title is not None: update_fields["title"] = update.title
     if update.target is not None: update_fields["target"] = update.target
     if update.color is not None: update_fields["color"] = update.color
+    if update.target_date is not None: update_fields["target_date"] = update.target_date
+    if update.category is not None: update_fields["category"] = update.category
+    if update.description is not None: update_fields["description"] = update.description
 
     inc_fields = {}
     if update.add_amount is not None: inc_fields["current"] = update.add_amount
@@ -280,6 +341,52 @@ async def change_password(pass_data: PasswordChange, user_id: str = Depends(get_
         {"$set": {"password": hashed}}
     )
     return {"status": "success"}
+
+from google import genai
+
+@app.post("/api/ai/chat")
+async def ai_chat(request: AIChatRequest, user_id: str = Depends(get_current_user)):
+    """AI Financial Advisor using the modern Gemini SDK."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"response": "AI Advisor is not configured. Please add your GEMINI_API_KEY to the .env file."}
+        
+    try:
+        # 1. Fetch Context
+        transactions = await db.transactions.find({"user_id": user_id}).sort("date", -1).to_list(50)
+        goals = await db.goals.find({"user_id": user_id}).to_list(10)
+        
+        # 2. Format Context
+        tx_summary = "\n".join([f"- {t['date'][:10]}: {t['label']} ({t['type']}) ₹{t['amount']}" for t in transactions])
+        gl_summary = "\n".join([f"- Goal: {g['title']}, Target: ₹{g['target']}, Current: ₹{g['current']}" for g in goals])
+        
+        system_prompt = f"""
+        You are FinPlan AI, a helpful financial advisor tracking the user's finances. 
+        Current Context:
+        RECENT TRANSACTIONS:
+        {tx_summary}
+        
+        FINANCIAL GOALS:
+        {gl_summary}
+        
+        Use this data ONLY to answer questions about their spending, savings, and progress. 
+        Be professional, encouraging, and clear. If they ask about something not in the data, tell them you don't have that information.
+        Keep responses concise.
+        """
+        
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model='gemini-flash-latest',
+            contents=f"{system_prompt}\n\nUser Question: {request.message}"
+        )
+        
+        return {"response": response.text}
+        
+    except Exception as e:
+        print(f"AI ERROR: {str(e)}")
+        if "429" in str(e):
+            return {"response": "The AI is currently busy (Quota Exceeded). Please wait a few seconds and try again. If this persists, ensure your Gemini API key has 'gemini-1.5-flash' enabled in Google AI Studio."}
+        return {"response": "I'm having trouble analyzing your finance data. Please ensure your Gemini API key is valid and and try again in a moment."}
 
 @app.post("/api/upload-statement")
 async def upload(file: UploadFile = File(...), user_id: str = Depends(get_current_user)):

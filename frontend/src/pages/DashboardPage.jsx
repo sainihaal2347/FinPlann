@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, Button } from '../components/SharedUI';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { api } from '../utils/api';
-import { Plus, X, ArrowUpRight, ArrowDownRight, RefreshCw, FileUp, Trash2 } from 'lucide-react';
+import { Plus, X, ArrowUpRight, ArrowDownRight, RefreshCw, FileUp, Trash2, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const DashboardPage = () => {
   const [transactions, setTransactions] = useState([]);
@@ -10,6 +12,8 @@ const DashboardPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [txLimit, setTxLimit] = useState(10);
+  const [txTimeframe, setTxTimeframe] = useState('all'); // 'all', '7days', '30days', 'thisMonth'
   
   const [form, setForm] = useState({
     type: 'income',
@@ -76,6 +80,32 @@ const DashboardPage = () => {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    const dashboard = document.getElementById('dashboard-report');
+    if (!dashboard) return;
+    
+    try {
+      const canvas = await html2canvas(dashboard, {
+        backgroundColor: '#0f172a',
+        scale: 2, // Higher quality
+        logging: false,
+        useCORS: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`FinPlan_Report_${new Date().toLocaleDateString()}.pdf`);
+    } catch (err) {
+      console.error("PDF Export failed:", err);
+      alert("Failed to generate PDF report.");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.amount || !form.label) return;
@@ -135,6 +165,23 @@ const DashboardPage = () => {
 
   const activityData = Object.values(chartDataMap).sort((a,b) => a.sortKey - b.sortKey);
 
+  // Filter recent transactions
+  const filteredTransactions = transactions.filter(t => {
+    if (txTimeframe === 'all') return true;
+    
+    const txDate = new Date(t.date || t.created_at);
+    const now = new Date();
+    const diffTime = Math.abs(now - txDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (txTimeframe === '7days') return diffDays <= 7;
+    if (txTimeframe === '30days') return diffDays <= 30;
+    if (txTimeframe === 'thisMonth') {
+      return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
+    }
+    return true;
+  }).slice(0, txLimit);
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
@@ -143,12 +190,16 @@ const DashboardPage = () => {
           <p className="text-slate-400 mt-2">Welcome back! Here's your financial summary.</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={fetchData} className="!p-3 border-slate-700 hover:bg-slate-800">
+          <Button variant="outline" onClick={fetchData} className="!p-3 border-slate-700 hover:bg-slate-800" title="Refresh">
             <RefreshCw size={20} className={loading ? "animate-spin text-indigo-400" : "text-slate-400"} />
           </Button>
 
-          <Button onClick={handleReset} variant="outline" className="gap-2 border-slate-700 bg-slate-900/50 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400">
-            <Trash2 size={20} /> Reset Data
+          <Button onClick={handleDownloadPDF} variant="outline" className="gap-2 border-slate-700 bg-slate-900/50 hover:bg-indigo-500/20 text-slate-300 hover:text-indigo-400" title="Export PDF">
+            <Download size={20} /> Report
+          </Button>
+
+          <Button onClick={handleReset} variant="outline" className="gap-2 border-slate-700 bg-slate-900/50 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400" title="Wipe Data">
+            <Trash2 size={20} /> Reset
           </Button>
 
           <div className="relative flex items-center">
@@ -162,17 +213,18 @@ const DashboardPage = () => {
             />
             <label htmlFor="dashboard-upload" className="flex items-center gap-2 cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md">
               <FileUp size={20} />
-              {uploading ? 'Parsing...' : 'Upload CSV'}
+              {uploading ? 'Parsing...' : 'Upload'}
             </label>
           </div>
 
           <Button onClick={() => setShowModal(true)} className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white">
-            <Plus size={20} /> Add Record
+            <Plus size={20} /> Add
           </Button>
         </div>
       </div>
 
-      {/* Top KPIs */}
+      <div id="dashboard-report" className="space-y-8 p-1">
+        {/* Top KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title="Net Savings" className="border-t-4 border-t-indigo-500">
           <h3 className="text-4xl font-black text-white">₹{netSavings.toLocaleString()}</h3>
@@ -246,6 +298,78 @@ const DashboardPage = () => {
             </div>
           )}
         </Card>
+      </div>
+
+      {/* Recent Transactions */}
+      <Card title="Recent Transactions" className="mt-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-400 font-medium">Show:</span>
+            <select 
+              value={txLimit} 
+              onChange={e => setTxLimit(Number(e.target.value))}
+              className="bg-slate-900 border border-slate-700 text-white text-sm rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value={5}>5 Records</option>
+              <option value={10}>10 Records</option>
+              <option value={25}>25 Records</option>
+              <option value={50}>50 Records</option>
+            </select>
+          </div>
+
+          <div className="flex flex-wrap gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800">
+            {[
+              { id: 'all', label: 'All Time' },
+              { id: '7days', label: 'Past 7 Days' },
+              { id: '30days', label: 'Past 30 Days' },
+              { id: 'thisMonth', label: 'This Month' }
+            ].map(tf => (
+              <button
+                key={tf.id}
+                onClick={() => setTxTimeframe(tf.id)}
+                className={`px-4 py-2 rounded-md text-xs font-bold transition-colors ${txTimeframe === tf.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filteredTransactions.length === 0 ? (
+          <div className="text-center text-slate-500 py-8 border border-dashed border-slate-800 rounded-xl">
+            No transactions found for the selected timeline.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 text-sm">
+                  <th className="pb-3 font-medium px-4">Date</th>
+                  <th className="pb-3 font-medium px-4">Label</th>
+                  <th className="pb-3 font-medium px-4 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTransactions.map(t => (
+                  <tr key={t.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
+                    <td className="py-4 px-4 text-sm text-slate-300">
+                      {new Date(t.date || t.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </td>
+                    <td className="py-4 px-4 text-sm font-medium text-slate-200">
+                      {t.label} 
+                      <span className="ml-2 text-xs font-normal text-slate-500 inline-block bg-slate-900 px-2 py-0.5 rounded-full border border-slate-800">{t.type}</span>
+                    </td>
+                    <td className={`py-4 px-4 text-right text-sm font-bold ${t.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {t.type === 'income' ? '+' : '-'}₹{t.amount.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       </div>
 
       {/* Add Transaction Modal */}

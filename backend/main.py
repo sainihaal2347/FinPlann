@@ -23,9 +23,9 @@ async def lifespan(app: FastAPI):
     # Startup logic
     try:
         await client.admin.command('ping')
-        print("✅ Successfully connected to MongoDB Atlas!")
+        print("Successfully connected to MongoDB Atlas!")
     except Exception as e:
-        print(f"\n❌ MONGODB CONNECTION ERROR: {str(e)}")
+        print(f"\n[ERROR] MONGODB CONNECTION ERROR: {str(e)}")
     
     yield
     # Shutdown logic (optional)

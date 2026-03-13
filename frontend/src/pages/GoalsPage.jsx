@@ -23,8 +23,11 @@ const GoalsPage = () => {
     addAmount: '',
     color: '',
     target_date: '',
-    category: '🎯'
+    category: '🎯',
+    milestones: []
   });
+
+  const [newMilestone, setNewMilestone] = useState({ label: '', target: '' });
 
   const fetchGoals = () => {
     setLoading(true);
@@ -78,9 +81,31 @@ const GoalsPage = () => {
       title: goal.title,
       target: goal.target,
       addAmount: '', // Empty by default
-      color: goal.color || '#6366f1',
       target_date: goal.target_date ? goal.target_date.split('T')[0] : '',
-      category: goal.category || '🎯'
+      category: goal.category || '🎯',
+      milestones: goal.milestones || []
+    });
+  };
+
+  const addMilestone = () => {
+    if (!newMilestone.label || !newMilestone.target) return;
+    setEditData({
+      ...editData,
+      milestones: [...editData.milestones, { label: newMilestone.label, target: parseFloat(newMilestone.target), achieved: false }]
+    });
+    setNewMilestone({ label: '', target: '' });
+  };
+
+  const toggleMilestone = (index) => {
+    const updated = [...editData.milestones];
+    updated[index].achieved = !updated[index].achieved;
+    setEditData({ ...editData, milestones: updated });
+  };
+
+  const removeMilestone = (index) => {
+    setEditData({
+      ...editData,
+      milestones: editData.milestones.filter((_, i) => i !== index)
     });
   };
 
@@ -92,7 +117,8 @@ const GoalsPage = () => {
         target: parseFloat(editData.target),
         color: editData.color,
         target_date: editData.target_date || null,
-        category: editData.category
+        category: editData.category,
+        milestones: editData.milestones
       };
       if (editData.addAmount) {
         payload.add_amount = parseFloat(editData.addAmount);
@@ -113,12 +139,12 @@ const GoalsPage = () => {
           <h2 className="text-4xl font-black text-white tracking-tight">Financial Goals</h2>
           <p className="text-slate-400 mt-2">Track and manage your saving targets.</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={fetchGoals} className="!p-3 border-slate-700 hover:bg-slate-800">
-            <RefreshCw size={20} className={loading && goals.length ? "animate-spin" : ""} />
+        <div className="flex flex-wrap gap-2 sm:gap-3">
+          <Button variant="outline" onClick={fetchGoals} className="!p-2 sm:!p-3 border-slate-700 hover:bg-slate-800">
+            <RefreshCw size={18} className={loading && goals.length ? "animate-spin" : ""} />
           </Button>
-          <Button onClick={() => setIsCreating(!isCreating)} className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white">
-            <Plus size={20} /> {isCreating ? 'Cancel' : 'New Goal'}
+          <Button onClick={() => setIsCreating(!isCreating)} className="gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm px-3 sm:px-6">
+            <Plus size={18} /> <span>{isCreating ? 'Cancel' : 'New Goal'}</span>
           </Button>
         </div>
       </div>
@@ -165,10 +191,11 @@ const GoalsPage = () => {
             // Computations
             const targetDate = goal.target_date ? new Date(goal.target_date) : null;
             const daysRemaining = targetDate ? Math.ceil((targetDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
-            const monthsRemaining = daysRemaining && daysRemaining > 0 ? Math.max(1, daysRemaining / 30) : null;
-            const monthlySaving = monthsRemaining ? ((goal.target - goal.current) / monthsRemaining).toFixed(0) : null;
             const isCompleted = goal.current >= goal.target;
             const isOverdue = daysRemaining !== null && daysRemaining < 0 && !isCompleted;
+            const milestonesAchieved = goal.milestones?.filter(m => m.achieved).length || 0;
+            const totalMilestones = goal.milestones?.length || 0;
+            const monthlySaving = goal.monthly_needed;
 
             let statusBadge = null;
             if (isCompleted) {
@@ -186,7 +213,7 @@ const GoalsPage = () => {
                 <div className="flex items-start">
                   <span className="text-2xl mr-3">{goal.category || '🎯'}</span>
                   <div>
-                    <h3 className="text-xl font-black tracking-tight text-white flex items-center flex-wrap gap-y-1">
+                    <h3 className="text-lg lg:text-xl font-black tracking-tight text-white flex items-center flex-wrap gap-y-1">
                       {goal.title}
                       {statusBadge}
                     </h3>
@@ -212,7 +239,7 @@ const GoalsPage = () => {
               <div className="space-y-4 mt-auto">
                 <div className="flex items-end justify-between mt-4">
                   <div>
-                    <p className="text-3xl font-black" style={{ color: goal.color || '#f8fafc'}} >
+                    <p className="text-2xl lg:text-3xl font-black" style={{ color: goal.color || '#f8fafc'}} >
                       ₹{goal.current.toLocaleString()}
                     </p>
                     <p className="text-slate-500 text-sm font-bold mt-1">of ₹{goal.target.toLocaleString()}</p>
@@ -225,10 +252,20 @@ const GoalsPage = () => {
                 </div>
                 <ProgressBar current={goal.current} target={goal.target} color={goal.color || "#6366f1"} />
                 
-                {monthlySaving && !isCompleted && !isOverdue && (
+                {totalMilestones > 0 && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Milestones:</span>
+                    <span className="text-[10px] font-bold text-indigo-400">{milestonesAchieved} / {totalMilestones}</span>
+                    <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                       <div className="h-full bg-indigo-500" style={{ width: `${(milestonesAchieved/totalMilestones)*100}%`}}></div>
+                    </div>
+                  </div>
+                )}
+                
+                {monthlySaving > 0 && !isCompleted && !isOverdue && (
                   <div className="pt-4 mt-4 border-t border-slate-800/50 flex justify-between items-center">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Suggested Saving</span>
-                    <span className="text-sm font-bold text-slate-200">₹{parseFloat(monthlySaving).toLocaleString()} / mo</span>
+                    <span className="text-sm font-bold text-slate-200">₹{monthlySaving.toLocaleString()} / mo</span>
                   </div>
                 )}
               </div>
@@ -288,6 +325,47 @@ const GoalsPage = () => {
                 <div className="space-y-2 md:col-span-3">
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Color</label>
                   <input type="color" value={editData.color} onChange={e => setEditData({...editData, color: e.target.value})} className="h-[50px] w-full cursor-pointer rounded-xl bg-slate-900 border border-slate-700 p-1" />
+                </div>
+              </div>
+
+              {/* Milestones Management */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest ml-1">Milestones</label>
+                <div className="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {(editData.milestones || []).map((m, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 bg-slate-900/50 border border-slate-800 rounded-xl group/ms">
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="checkbox" 
+                          checked={m.achieved} 
+                          onChange={() => toggleMilestone(idx)}
+                          className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900"
+                        />
+                        <span className={`text-sm ${m.achieved ? 'text-slate-500 line-through' : 'text-slate-200'}`}>{m.label} (₹{m.target})</span>
+                      </div>
+                      <button type="button" onClick={() => removeMilestone(idx)} className="text-slate-600 hover:text-rose-400 opacity-0 group-hover/ms:opacity-100 transition-opacity">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Milestone label..." 
+                    value={newMilestone.label} 
+                    onChange={e => setNewMilestone({...newMilestone, label: e.target.value})}
+                    className="flex-1 p-2 text-sm rounded-lg bg-slate-900 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <input 
+                    type="number" 
+                    placeholder="₹" 
+                    value={newMilestone.target} 
+                    onChange={e => setNewMilestone({...newMilestone, target: e.target.value})}
+                    className="w-20 p-2 text-sm rounded-lg bg-slate-900 border border-slate-700 text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <button type="button" onClick={addMilestone} className="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-white font-bold transition-colors">Add</button>
                 </div>
               </div>
 

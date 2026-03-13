@@ -39,8 +39,8 @@ export const api = {
     body: JSON.stringify(body)
   }).then(handleResponse),
 
-  upload: (path, formData) => {
-    const headers = { ...getHeaders() };
+  upload: (path, formData, extraHeaders = {}) => {
+    const headers = { ...getHeaders(), ...extraHeaders };
     delete headers["Content-Type"]; // Browser will set this with boundary for FormData
     return fetch(`${API_BASE}${path}`, {
       method: 'POST',

@@ -114,8 +114,8 @@ const SettingsPage = () => {
     <div className="space-y-8 animate-fade-in pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-          <h2 className="text-4xl font-black text-white tracking-tight">Settings</h2>
-          <p className="text-slate-400 mt-2">Manage your account preferences and security.</p>
+          <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Settings</h2>
+          <p className="text-slate-400 mt-2 text-sm sm:text-base">Manage your account preferences and security.</p>
         </div>
       </div>
 

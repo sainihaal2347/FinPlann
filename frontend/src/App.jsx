@@ -4,9 +4,11 @@ import DashboardPage from './pages/DashboardPage';
 import GoalsPage from './pages/GoalsPage';
 import SettingsPage from './pages/SettingsPage';
 import CashFlowPage from './pages/CashFlowPage';
+import AccountsPage from './pages/AccountsPage';
+import BudgetsPage from './pages/BudgetsPage';
 import SidebarItem from './components/SidebarItem';
 import ChatWidget from './components/ChatWidget';
-import { LayoutDashboard, Target, Settings, LogOut, Zap, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Target, Settings, LogOut, Zap, TrendingUp, Menu, X, Wallet, PieChart } from 'lucide-react';
 
 const App = () => {
   // Safe authentication state check
@@ -16,6 +18,7 @@ const App = () => {
   });
   
   const [view, setView] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -27,12 +30,19 @@ const App = () => {
     return <LoginPage onAuthSuccess={() => setIsAuth(true)} />;
   }
 
+  const navigateTo = (newView) => {
+    setView(newView);
+    setIsSidebarOpen(false); // Close sidebar on mobile after navigation
+  };
+
   // Routing logic based on state
   const renderContent = () => {
     switch(view) {
       case 'dashboard': return <DashboardPage />;
       case 'goals': return <GoalsPage />;
       case 'insights': return <CashFlowPage />;
+      case 'accounts': return <AccountsPage />;
+      case 'budgets': return <BudgetsPage />;
       case 'settings': return <SettingsPage />;
       default: return <DashboardPage />;
     }
@@ -40,16 +50,48 @@ const App = () => {
 
   return (
     <div className="flex h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#0f172a] to-black font-sans text-slate-100 overflow-hidden selection:bg-indigo-500/30">
+      
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/50 flex items-center justify-between px-6 z-40">
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="FinPlan AI" className="w-8 h-8 rounded-lg object-contain" />
+          <span className="text-xl font-black tracking-tight text-white italic">FinPlan <span className="text-indigo-400">AI</span></span>
+        </div>
+        <button 
+          onClick={() => setIsSidebarOpen(true)}
+          className="p-2 text-slate-400 hover:text-white transition-colors"
+        >
+          <Menu size={24} />
+        </button>
+      </div>
+
+      {/* Sidebar Overlay for Mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fade-in"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar Navigation */}
-      <aside className="w-72 bg-slate-900/50 backdrop-blur-xl border-r border-slate-800/50 flex flex-col p-8 shrink-0 relative overflow-hidden">
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-72 bg-slate-900/95 lg:bg-slate-900/50 backdrop-blur-xl border-r border-slate-800/50 flex flex-col p-8 transition-transform duration-300 lg:relative lg:translate-x-0 lg:shrink-0
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
         {/* Decorative background glow */}
         <div className="absolute top-0 left-0 w-full h-48 bg-indigo-600/10 blur-[60px] rounded-full pointer-events-none -translate-y-1/2"></div>
         
-        <div className="flex items-center gap-3 mb-12 relative z-10">
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl flex items-center justify-center text-white shadow-[0_0_20px_rgba(99,102,241,0.4)]">
-            <Zap size={22} fill="currentColor" />
+        <div className="flex items-center justify-between mb-12 relative z-10">
+          <div className="flex items-center gap-3">
+             <img src="/logo.png" alt="FinPlan AI" className="w-10 h-10 rounded-xl object-contain drop-shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
+             <span className="text-2xl font-black tracking-tight text-white italic">FinPlan <span className="text-indigo-400">AI</span></span>
           </div>
-          <span className="text-2xl font-black tracking-tight text-white">FinPlanAI</span>
+          <button 
+            className="lg:hidden p-2 text-slate-400 hover:text-white"
+            onClick={() => setIsSidebarOpen(false)}
+          >
+            <X size={24} />
+          </button>
         </div>
         
         <nav className="flex-1 space-y-2 relative z-10">
@@ -57,25 +99,37 @@ const App = () => {
             icon={LayoutDashboard} 
             label="Dashboard" 
             active={view === 'dashboard'} 
-            onClick={() => setView('dashboard')} 
+            onClick={() => navigateTo('dashboard')} 
           />
           <SidebarItem 
             icon={Target} 
             label="Goals" 
             active={view === 'goals'} 
-            onClick={() => setView('goals')} 
+            onClick={() => navigateTo('goals')} 
           />
           <SidebarItem 
             icon={TrendingUp} 
             label="Insights" 
             active={view === 'insights'} 
-            onClick={() => setView('insights')} 
+            onClick={() => navigateTo('insights')} 
+          />
+          <SidebarItem 
+            icon={Wallet} 
+            label="Accounts" 
+            active={view === 'accounts'} 
+            onClick={() => navigateTo('accounts')} 
+          />
+          <SidebarItem 
+            icon={PieChart} 
+            label="Budgets" 
+            active={view === 'budgets'} 
+            onClick={() => navigateTo('budgets')} 
           />
           <SidebarItem 
             icon={Settings} 
             label="Settings" 
             active={view === 'settings'} 
-            onClick={() => setView('settings')} 
+            onClick={() => navigateTo('settings')} 
           />
         </nav>
 
@@ -88,7 +142,7 @@ const App = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-10 overflow-y-auto bg-transparent relative">
+      <main className="flex-1 pt-24 pb-10 px-4 md:px-10 lg:pt-10 overflow-y-auto bg-transparent relative">
         <div className="max-w-6xl mx-auto relative z-10">
           {renderContent()}
         </div>

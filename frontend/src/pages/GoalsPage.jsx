@@ -65,18 +65,7 @@ const GoalsPage = () => {
   const handleDelete = async (goalId) => {
     if(!window.confirm("Are you sure you want to delete this goal?")) return;
     try {
-      await api.post(`/user/goals/${goalId}`, null); // Fast API fallback if DELETE is tricky
-    } catch {
-      // Ignore
-    }
-    // Using actual DELETE method
-    try {
-      await fetch(`http://127.0.0.1:8000/api/user/goals/${goalId}`, {
-        method: 'DELETE',
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
-        }
-      });
+      await api.delete(`/user/goals/${goalId}`);
       fetchGoals();
     } catch (err) {
       alert("Failed to delete goal: " + err.message);
@@ -109,14 +98,7 @@ const GoalsPage = () => {
         payload.add_amount = parseFloat(editData.addAmount);
       }
       
-      await fetch(`http://127.0.0.1:8000/api/user/goals/${editingGoal.id || editingGoal._id}`, {
-        method: 'PUT',
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("token") || ""}`
-        },
-        body: JSON.stringify(payload)
-      });
+      await api.put(`/user/goals/${editingGoal.id || editingGoal._id}`, payload);
       setEditingGoal(null);
       fetchGoals();
     } catch (err) {

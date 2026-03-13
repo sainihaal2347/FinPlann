@@ -46,16 +46,7 @@ const DashboardPage = () => {
     formData.append('file', file);
 
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:8000/api/upload-statement', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-      
-      const data = await res.json();
+      const data = await api.upload('/upload-statement', formData);
       if (data.summary) {
         alert(`Successfully imported ${data.inserted} transactions from statement!`);
         fetchData();

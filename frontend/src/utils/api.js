@@ -31,5 +31,21 @@ export const api = {
   delete: (path) => fetch(`${API_BASE}${path}`, { 
     method: 'DELETE',
     headers: getHeaders() 
-  }).then(handleResponse)
+  }).then(handleResponse),
+
+  put: (path, body) => fetch(`${API_BASE}${path}`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify(body)
+  }).then(handleResponse),
+
+  upload: (path, formData) => {
+    const headers = { ...getHeaders() };
+    delete headers["Content-Type"]; // Browser will set this with boundary for FormData
+    return fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData
+    }).then(handleResponse);
+  }
 };

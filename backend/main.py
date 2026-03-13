@@ -12,6 +12,12 @@ from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 from bson import ObjectId
 
+import logging
+
+# --- Logging Configuration ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -21,11 +27,15 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
-    try:
-        await client.admin.command('ping')
-        print("Successfully connected to MongoDB Atlas!")
-    except Exception as e:
-        print(f"\n[ERROR] MONGODB CONNECTION ERROR: {str(e)}")
+    mongodb_url = os.getenv("MONGODB_URL")
+    if not mongodb_url:
+        logger.warning("MONGODB_URL is not set in environment variables!")
+    else:
+        try:
+            await client.admin.command('ping')
+            logger.info("Successfully connected to MongoDB Atlas!")
+        except Exception as e:
+            logger.error(f"MONGODB CONNECTION ERROR: {str(e)}")
     
     yield
     # Shutdown logic (optional)

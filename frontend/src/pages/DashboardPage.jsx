@@ -419,7 +419,7 @@ const DashboardPage = () => {
                     />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '12px' }}
-                      itemStyle={{ fontWeight: 'bold' }}
+                      itemStyle={{ fontWeight: 'bold', color: '#fff' }}
                       labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
                       labelFormatter={(label) => new Date(label).toLocaleDateString(undefined, { dateStyle: 'medium' })}
                       formatter={(value, name) => [`₹${value.toLocaleString()}`, name === 'income' ? 'Income' : 'Expense']}
@@ -443,7 +443,9 @@ const DashboardPage = () => {
                     <XAxis dataKey="name" stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <YAxis stroke="#64748b" tick={{ fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(val) => `${val >= 1000 ? val / 1000 + 'k' : val}`} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', fontSize: '12px' }}
+                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                      itemStyle={{ color: '#fff' }}
+                      labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
                       cursor={{ fill: '#1e293b', opacity: 0.4 }}
                       formatter={(value) => [`₹${value.toLocaleString()}`, 'Expense']}
                     />
